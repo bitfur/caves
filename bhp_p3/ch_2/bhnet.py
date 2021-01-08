@@ -30,43 +30,24 @@ def client_handler(client_socket):
     global command
     print("Command:{}".format(command))
     
-    # check for upload
     if len(upload_destination):
-        
-        # read in all of the bytes and write to our destination
         file_buffer = ""
-        
-        # keep reading data until none is available
         while True:
             data = client_socket.recv(1024)
-            
             if not data:
                 break
             else:
                 file_buffer += data
-                
-        # now we take these bytes and try to write them out
         try:
             file_descriptor = open(upload_destination,"wb")
             file_descriptor.write(file_buffer)
             file_descriptor.close()
-            
-            # acknowledge that we wrote the file out
             client_socket.send("Successfully saved file to %s\r\n".encode() % upload_destination)
         except:
             client_socket.send("Failed to save file to %s\r\n".encode() % upload_destination)
-            
-        
-    
-    # check for command execution
     if len(execute):
-        
-        # run the command
         output = run_command(execute)
-        
-        client_socket.send(output.encode())
-    
-    
+        client_socket.send(output.encode())    
     if command:
         shell = "BHP#>"
         count = 0
@@ -77,10 +58,8 @@ def client_handler(client_socket):
             while "\n" not in cmd_buffer:
                 cmd_buffer += client_socket.recv(1024).decode()
             cmd_buffer = cmd_buffer.strip()
-            print("[*] New command:[{}]".format(cmd_buffer))
             response = run_command(cmd_buffer)
             count += 1
-            print("[+] Command count:{}".format(count))
             response = str(response)
             if count > 0:
                 response += shell
@@ -89,21 +68,13 @@ def client_handler(client_socket):
 def server_loop():
     global target
     global port
-    
-    # if no target is defined we listen on all interfaces
     if not len(target):
         target = "0.0.0.0"
-        
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((target,port))
-    
     server.listen(5)        
-    
     while True:
         client_socket, addr = server.accept()
-        
-        # spin off a thread to handle our new client
         client_thread = threading.Thread(target=client_handler,args=(client_socket,))
         client_thread.start()
 
@@ -124,9 +95,8 @@ def client_sender(buffer):
             response = b''
             bytes_read = 0
             while recv_len:
-                time.sleep(0.2) #<- improve with async no blocks
+                time.sleep(0.2)
                 data     = client.recv(4096)
-                # print("Got data:{}".format(len(data)))
                 recv_len = len(data)
                 bytes_read += recv_len
                 response+= data
@@ -135,6 +105,8 @@ def client_sender(buffer):
             print(response.decode(), end='')
             sys.stdout.flush()
             buffer = sys.stdin.readline()
+            if buffer.strip() in ["q","quit","exit"]:
+                break
             if buffer:
                 client.send(buffer.encode())
             else:
@@ -161,7 +133,6 @@ def usage():
     print("echo 'ABCDEFGHI' | ./bhpnet.py -t 192.168.11.12 -p 135")
     sys.exit(0)
 
-
 def main():
     global listen
     global port
@@ -169,16 +140,13 @@ def main():
     global command
     global upload_destination
     global target
-    
     if not len(sys.argv[1:]):
         usage()
-
     try:
         opts, args = getopt.getopt(sys.argv[1:],"hle:t:p:cu:",["help","listen","execute","target","port","command","upload"])
     except getopt.GetoptError as err:
         print(str(err))
-        usage()
-  
+        usage()  
     for o,a in opts:
         if o in ("-h","--help"):
             usage()
@@ -196,26 +164,12 @@ def main():
             port = int(a)
         else:
             assert False,"Unhandled Option"
-    
-
-    # are we going to listen or just send data from stdin
     if not listen and len(target) and port > 0:
-        
-        # read in the buffer from the commandline
-        # this will block, so send CTRL-D if not sending input
-        # to stdin
         buffer = ""
         if not command:
             buffer = sys.stdin.readline()
-            buffer += '\n'
-        
-        # send data off
+            buffer += '\n'        
         client_sender(buffer)   
-    
-    # we are going to listen and potentially 
-    # upload things, execute commands and drop a shell back
-    # depending on our command line options above
     if listen:
         server_loop()
-
 main()       
